@@ -1,0 +1,53 @@
+# API keys — never commit
+.env
+*.env
+.envv
+!.env.example
+
+# Debug logs
+litellm_debug.txt
+
+# Personal docs (resume etc.)
+docs/ANIL_KUMAR_RESUME_UPDATED.md
+
+# LiteLLM runtime
+litellm.log
+litellm_cache/
+litellm_proxy.db
+
+# Docker
+pgdata/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node
+node_modules/
+# Presentation (local only)
+DEMO_PRESENTATION.md
+
+# IDE / editor settings
+.vscode/
+.kiro/
+
+# OpenCode TUI config (personal)
+tui.json
+
+# Memory files (session-specific, not project config)
+.opencode/memory/episodic/
+.opencode/memory/prospective/
+.opencode/memory/semantic/
+.opencode/memory/retrieval/
+.opencode/memory/procedural/meta_cognition.md
+
+# Internal check/test scripts (development only)
+scripts/checks/
+scripts/tests/
+scripts/check_config.py
+scripts/check_compose_ban.sh
+scripts/test_identifiers.py
+
+# OS files
+.DS_Store

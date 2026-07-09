@@ -1,0 +1,67 @@
+services:
+  # OPTIONAL: Postgres is only needed for the DB-backed path (dashboard model/spend
+  # persistence). With the DB-free local path (storage flags off in litellm_config.yaml),
+  # the proxy starts on port 4000 without this service. Remove this service and the
+  # `depends_on` block below, plus DATABASE_URL, to run proxy-only.
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: litellm
+      POSTGRES_DB: litellm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: always
+    # OPTIONAL: this dependency only applies on the DB-backed path. It is not required
+    # once the storage flags are disabled in litellm_config.yaml (DB-free local path).
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml
+      # Pre-call hook that strips `reasoning_content` from assistant messages so Groq/
+      # Cerebras/etc. don't reject replayed reasoning-model history.
+      - ./strip_reasoning.py:/app/strip_reasoning.py
+    # Use env_file to read keys directly from the .env file, ignoring shell overrides
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:litellm@db:5432/litellm
+      - LITELLM_MASTER_KEY=sk-litellm-master-key
+      - UI_USERNAME=admin
+      - UI_PASSWORD=admin
+      # Keep FALSE so this proxy routes strictly from litellm_config.yaml (YAML is the single
+      # source of truth for models + fallbacks). The env var OVERRIDES the YAML setting, so it
+      # must match. `true` lets DB-stored models shadow the YAML → fallbacks don't take effect.
+      - STORE_MODEL_IN_DB=False
+      - LITELLM_LOG=INFO
+    command:
+      - "--config"
+      - "/app/config.yaml"
+      - "--port"
+      - "4000"
+
+  tool-viewer:
+    build: ./tool_call_viewer
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5001:5001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:litellm@db:5432/litellm
+
+volumes:
+  pgdata:

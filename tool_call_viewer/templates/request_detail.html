@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request {{ row.request_id[:20] }} — Tool Calls</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 20px;
+        }
+        h1 {
+            color: #58a6ff;
+            margin-bottom: 8px;
+            font-size: 1.4rem;
+        }
+        .back { margin-bottom: 20px; display: inline-block; }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #161b22;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+        }
+        .meta-item label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #8b949e;
+            margin-bottom: 4px;
+        }
+        .meta-item span {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #d2a8ff;
+        }
+
+        .section-title {
+            color: #58a6ff;
+            font-size: 1.1rem;
+            margin: 24px 0 12px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .tool-call {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .tool-call-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #21262d;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tool-call-header:hover { background: #2d333b; }
+        .tool-call-number {
+            background: #58a6ff;
+            color: #0d1117;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .tool-call-name {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #3fb950;
+            font-weight: 600;
+        }
+        .tool-call-id {
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #8b949e;
+            margin-left: auto;
+        }
+        .tool-call-body {
+            padding: 16px;
+            display: none;
+        }
+        .tool-call-body.open { display: block; }
+        .tool-call-body pre {
+            background: #0d1117;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .tool-call-body h4 {
+            color: #8b949e;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .expand-all {
+            padding: 8px 16px;
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+        .expand-all:hover { background: #30363d; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: #f8514930;
+            color: #f85149;
+        }
+
+        .search-box {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 8px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 0.85rem;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back">← Back to all requests</a>
+
+    <h1>Request Detail</h1>
+
+    <div class="meta-grid">
+        <div class="meta-item">
+            <label>Request ID</label>
+            <span>{{ row.request_id }}</span>
+        </div>
+        <div class="meta-item">
+            <label>Model</label>
+            <span>{{ row.model or '-' }}</span>
+        </div>
+        <div class="meta-item">
+            <label>Start Time</label>
+            <span class="utc-time" data-utc="{{ row.startTime.strftime('%Y-%m-%dT%H:%M:%SZ') if row.startTime else '' }}">{{ row.startTime }}</span>
+        </div>
+        <div class="meta-item">
+            <label>End Time</label>
+            <span class="utc-time" data-utc="{{ row.endTime.strftime('%Y-%m-%dT%H:%M:%SZ') if row.endTime else '' }}">{{ row.endTime }}</span>
+        </div>
+        <div class="meta-item">
+            <label>Total Tokens</label>
+            <span>{{ row.total_tokens or '-' }}</span>
+        </div>
+        <div class="meta-item">
+            <label>Prompt Tokens</label>
+            <span>{{ row.prompt_tokens or '-' }}</span>
+        </div>
+        <div class="meta-item">
+            <label>Completion Tokens</label>
+            <span>{{ row.completion_tokens or '-' }}</span>
+        </div>
+        <div class="meta-item">
+            <label>Cost</label>
+            <span>{{ '$%.6f' % row.spend if row.spend else '-' }}</span>
+        </div>
+    </div>
+
+    <h2 class="section-title">
+        Tool Calls <span class="badge">{{ tool_count }}</span>
+    </h2>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Filter tool calls by name or content..." oninput="filterTools()">
+    </div>
+
+    <button class="expand-all" onclick="toggleAll()">Expand / Collapse All</button>
+
+    <div id="toolCallsContainer">
+        {% for tc in tool_calls %}
+        <div class="tool-call" data-name="{{ tc.function.name if tc.function else '' }}">
+            <div class="tool-call-header" onclick="toggleBody(this)">
+                <span class="tool-call-number">{{ loop.index }}</span>
+                <span class="tool-call-name">{{ tc.function.name if tc.function else 'unknown' }}</span>
+                <span class="tool-call-id">{{ tc.id or '' }}</span>
+            </div>
+            <div class="tool-call-body">
+                <h4>Arguments</h4>
+                <pre>{% if tc.function and tc.function.arguments %}{{ tc.function.arguments if tc.function.arguments is string else json.dumps(json.loads(tc.function.arguments) if tc.function.arguments is string else tc.function.arguments, indent=2) }}{% else %}(none){% endif %}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if tool_results %}
+    <h2 class="section-title">
+        Tool Results in Request ({{ tool_results|length }})
+    </h2>
+    <div id="toolResultsContainer">
+        {% for tr in tool_results %}
+        <div class="tool-call">
+            <div class="tool-call-header" onclick="toggleBody(this)">
+                <span class="tool-call-number">{{ loop.index }}</span>
+                <span class="tool-call-name">result: {{ tr.tool_call_id or 'unknown' }}</span>
+            </div>
+            <div class="tool-call-body">
+                <h4>Content</h4>
+                <pre>{{ tr.content[:2000] if tr.content else '(empty)' }}{% if tr.content and tr.content|length > 2000 %}...truncated ({{ tr.content|length }} chars total){% endif %}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <script>
+        // Convert UTC timestamps to local timezone
+        document.querySelectorAll('.utc-time').forEach(el => {
+            const utc = el.getAttribute('data-utc');
+            if (utc) {
+                const date = new Date(utc);
+                el.textContent = date.toLocaleString();
+            }
+        });
+
+        function toggleBody(header) {
+            const body = header.nextElementSibling;
+            body.classList.toggle('open');
+        }
+
+        function toggleAll() {
+            const bodies = document.querySelectorAll('.tool-call-body');
+            const anyOpen = Array.from(bodies).some(b => b.classList.contains('open'));
+            bodies.forEach(b => {
+                if (anyOpen) b.classList.remove('open');
+                else b.classList.add('open');
+            });
+        }
+
+        function filterTools() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.querySelectorAll('#toolCallsContainer .tool-call');
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

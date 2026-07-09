@@ -1,0 +1,277 @@
+{
+  "model": "litellm/coder",
+  "small_model": "litellm/coder",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "git reset --hard*": "deny",
+      "git clean*": "deny",
+      "git push*": "deny",
+      "git rebase*": "deny",
+      "git commit --amend*": "deny",
+      "git checkout -f*": "deny",
+      "git branch -D*": "deny",
+      "rm -rf*": "deny"
+    }
+  },
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM Proxy",
+      "options": {
+        "baseURL": "http://localhost:4000/v1",
+        "apiKey": "sk-litellm-master-key"
+      },
+      "models": {
+        "coder": {
+          "name": "Coder (NIM GLM-5.2)",
+          "maxTokens": 65536
+        },
+        "reasoner": {
+          "name": "Reasoner (NIM Nemotron 3 Super)",
+          "maxTokens": 65536
+        },
+        "planner": {
+          "name": "Planner (NIM Nemotron 3 Super)",
+          "maxTokens": 131072
+        },
+        "reviewer": {
+          "name": "Reviewer (NIM Mistral Medium 3.5)",
+          "maxTokens": 32768
+        }
+      }
+    },
+    "naraya": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NaraRouter",
+      "options": {
+        "baseURL": "https://router.bynara.id/v1",
+        "apiKey": "env:NARA_API_KEY"
+      },
+      "models": {
+        "claude-sonnet-4.5": {
+          "name": "Claude Sonnet 4.5 (Nara)",
+          "maxTokens": 65536,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "claude-haiku-4.5": {
+          "name": "Claude Haiku 4.5 (Nara)",
+          "maxTokens": 65536,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "mistral-large": {
+          "name": "Mistral Large (Nara)",
+          "maxTokens": 65536
+        },
+        "mistral-medium-3-5": {
+          "name": "Mistral Medium 3.5 (Nara)",
+          "maxTokens": 65536,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        }
+      }
+    },
+    "nvidia": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA NIM",
+      "options": {
+        "baseURL": "https://integrate.api.nvidia.com/v1",
+        "apiKey": "env:NVIDIA_NIM_API_KEY"
+      },
+      "models": {
+        "deepseek-ai/deepseek-v4-pro": {
+          "name": "DeepSeek V4 Pro (NIM)",
+          "maxTokens": 65536
+        },
+        "z-ai/glm-5.2": {
+          "name": "GLM-5.2 (NIM)",
+          "maxTokens": 65536
+        },
+        "nvidia/nemotron-3-super-120b-a12b": {
+          "name": "Nemotron 3 Super 120B (NIM)",
+          "maxTokens": 65536
+        },
+        "mistralai/mistral-medium-3.5-128b": {
+          "name": "Mistral Medium 3.5 (NIM)",
+          "maxTokens": 65536
+        },
+        "nvidia/llama-3.3-nemotron-super-49b-v1": {
+          "name": "Llama 3.3 Nemotron Super 49B (NIM)",
+          "maxTokens": 65536
+        }
+      }
+    }
+  },
+  "lsp": {
+    "kotlin-ls": {
+      "command": ["kotlin-language-server", "--stdio"],
+      "extensions": [".kt", ".kts"]
+    },
+    "python": {
+      "command": ["pylsp"],
+      "extensions": [".py"]
+    }
+  },
+  "mcp": {
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": true,
+      "environment": {}
+    },
+    "package-version": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-package-version"],
+      "enabled": true,
+      "environment": {}
+    },
+    "maven-tools": {
+      "type": "local",
+      "command": ["uvx", "mvn-mcp-server"],
+      "enabled": true,
+      "environment": {}
+    }
+  },
+  "agent": {
+    "orchestrator": {
+      "description": "Advisory router: reads a request, classifies intent, and recommends the specialist chain (plan → code → test → review) plus the exact next @mention to run. Does not execute work itself.",
+      "mode": "subagent",
+      "model": "litellm/reasoner",
+      "temperature": 0.2,
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      },
+      "prompt": ".opencode/agents/orchestrator.md"
+    },
+    "planner": {
+      "description": "Plans Android features into thorough, dependency-ordered checklists that anticipate every realistic scenario, edge case, and risk. Investigates the codebase first. Accepts an optional reference doc path (ref: <path>). Saves plans to .opencode/plans/ for resumability. Never edits project files.",
+      "mode": "subagent",
+      "model": "litellm/planner",
+      "temperature": 0.3,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": false
+      },
+      "prompt": ".opencode/agents/planner.md"
+    },
+    "coder": {
+      "description": "Generates complete, compilable Kotlin/Java + XML files following project architecture. Owns the compile/test loop; never leaves a previously-working file broken.",
+      "mode": "subagent",
+      "model": "litellm/coder",
+      "temperature": 0.15,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      },
+      "prompt": ".opencode/agents/coder.md"
+    },
+    "tester": {
+      "description": "Generates unit tests using MockK (Kotlin) or Mockito (Java) — supports MVVM, MVP, and MVC architectures.",
+      "mode": "subagent",
+      "model": "litellm/reasoner",
+      "temperature": 0.2,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": false
+      },
+      "prompt": ".opencode/agents/tester.md"
+    },
+    "ui-tester": {
+      "description": "Generates instrumented / UI tests (Espresso, FragmentScenario/ActivityScenario, Hilt instrumented tests, Room in-memory) in androidTest/. View-based only — never Compose test APIs.",
+      "mode": "subagent",
+      "model": "litellm/reasoner",
+      "temperature": 0.2,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": false
+      },
+      "prompt": ".opencode/agents/ui-tester.md"
+    },
+    "reviewer": {
+      "description": "Performs severity-rated code reviews checking memory leaks, threading issues, architecture compliance, and security.",
+      "mode": "subagent",
+      "model": "litellm/reviewer",
+      "temperature": 0.2,
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      },
+      "prompt": ".opencode/agents/reviewer.md"
+    },
+    "debugger": {
+      "description": "Diagnoses Android bugs root-cause-first with evidence-based fix steps.",
+      "mode": "subagent",
+      "model": "litellm/reasoner",
+      "temperature": 0.1,
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": true
+      },
+      "prompt": ".opencode/agents/debugger.md"
+    },
+    "memory-manager": {
+      "description": "Manages persistent memory — session logs, learned patterns, goals, codebase index, and model calibration.",
+      "mode": "subagent",
+      "model": "litellm/coder",
+      "temperature": 0.1,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": false
+      },
+      "prompt": ".opencode/agents/memory-manager.md"
+    },
+    "doc-reader": {
+      "description": "Converts PDF, DOCX, and image files in docs/input/ to agent-readable Markdown in docs/parsed/.",
+      "mode": "subagent",
+      "model": "litellm/coder",
+      "temperature": 0.1,
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": true
+      },
+      "prompt": ".opencode/agents/doc-reader.md"
+    },
+    "refactorer": {
+      "description": "Safely refactors legacy code to modern patterns. Compiles after every change-set (non-negotiable gate) and auto-reverts a broken change-set to restore the build without being asked — never leaves a broken build.",
+      "mode": "subagent",
+      "model": "litellm/coder",
+      "temperature": 0.15,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      },
+      "prompt": ".opencode/agents/refactorer.md"
+    },
+    "ui-builder": {
+      "description": "Builds native Android UI (XML layout + ViewBinding + Fragment) from a text description. Material 3, no Compose. Compiles to verify; never leaves a previously-working file broken.",
+      "mode": "subagent",
+      "model": "litellm/coder",
+      "temperature": 0.15,
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      },
+      "prompt": ".opencode/agents/ui-builder.md"
+    }
+  }
+}

@@ -1,0 +1,468 @@
+general_settings:
+  master_key: sk-litellm-master-key
+  # IMPORTANT: keep this FALSE so THIS YAML is the single source of truth for models,
+  # routing order, and fallbacks. With it `true`, LiteLLM can serve models stored in the
+  # Postgres DB (e.g. anything ever added via the Admin UI), which SHADOWS this file — the
+  # classic cause of "my fallbacks / model reorder aren't taking effect" (every call kept
+  # hitting the old primary). Prompt/response logging below does NOT need this to be true.
+  store_model_in_db: false
+  # Prompt/response content is still persisted to spend logs so the dashboard
+  # "Request & Response" panel renders payloads (uses DATABASE_URL directly).
+  store_prompts_in_spend_logs: true
+
+# ============================================================
+# Android OpenCode Agent — LiteLLM Proxy Config
+# 100% free-tier models • No credit card required
+#
+# 6 providers, independent rate-limit pools:
+#   NVIDIA NIM (build.nvidia.com — free first-party) | Gemini (direct) | OpenRouter
+#   | Groq (LPU) | Cerebras (wafer-scale) | NaraRouter
+#
+# Model strategy (NVIDIA NIM primary — free first-party, generous limits):
+#   coder     → NIM GLM-5.2 → NIM DeepSeek V4 Pro → Claude Sonnet 4.5
+#               → Owl Alpha → Mistral Large → Laguna M.1 → Groq Llama 4 Scout → Nex-N2 → Cerebras → Gemini Flash
+#   planner   → NIM Nemotron 3 Super → NIM GLM-5.2 → Claude Sonnet 4.5 → OR Nemotron Super/Ultra
+#   reasoner  → NIM Nemotron 3 Super → NIM DeepSeek V4 Pro → OR Nemotron Super → Claude Sonnet 4.5
+#               → Owl Alpha → Mistral Large → Groq/Cerebras gpt-oss → Nemotron Ultra
+#   reviewer  → NIM Mistral Medium 3.5 → NIM Llama-3.3-Nemotron-Super-49B → Claude Haiku 4.5
+#               → Owl Alpha → Mistral Medium → Qwen3-235B → Groq → Nemotron Ultra → Cerebras → Gemini Flash
+#
+# Keys needed: NVIDIA_NIM_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY, NARA_API_KEY
+#
+# NVIDIA NIM models use LiteLLM's `nvidia_nim/<publisher>/<model>` prefix (base URL
+# https://integrate.api.nvidia.com/v1, resolved by LiteLLM). If a chosen model shows as
+# unavailable, open its page on build.nvidia.com → API Reference and copy the exact
+# `model=` slug; the router simply skips a 404 deployment and falls through.
+# ============================================================
+
+model_list:
+
+  # ── CODER MODEL ─────────────────────────────────────────────
+  # Best coding models, quality-optimized order
+  # NVIDIA NIM first — free first-party with generous limits.
+  # Claude Sonnet 4.5, Owl Alpha, Mistral Large next — quality fallbacks.
+  # Gemini Flash last resort (20 RPD daily cap, burns through quickly).
+
+  # PRIMARY: NVIDIA NIM (free first-party, generous limits). glm-5.2 = flagship agentic-
+  # coding model; deepseek-v4-pro = 1M-ctx coding MoE. Verify slugs on each model's API
+  # Reference tab if one 404s (the router just skips a bad deployment and falls through).
+  - model_name: coder
+    litellm_params:
+      model: nvidia_nim/z-ai/glm-5.2
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  - model_name: coder
+    litellm_params:
+      model: nvidia_nim/deepseek-ai/deepseek-v4-pro
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  # Fallbacks: Claude (quality), Owl Alpha, Mistral Large, Laguna behind NIM.
+  # Gemini demoted to last-resort tier (low RPD cap).
+  - model_name: coder
+    litellm_params:
+      model: openai/claude-sonnet-4.5
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: coder
+    litellm_params:
+      model: openrouter/openrouter/owl-alpha
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: coder
+    litellm_params:
+      model: openai/mistral-large
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: coder
+    litellm_params:
+      model: openrouter/poolside/laguna-m.1:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: coder
+    litellm_params:
+      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
+      api_key: os.environ/GROQ_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 30
+      tpm: 30000
+
+  - model_name: coder
+    litellm_params:
+      model: openrouter/nex-agi/nex-n2-pro:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: coder
+    litellm_params:
+      model: cerebras/gpt-oss-120b
+      api_key: os.environ/CEREBRAS_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 30
+      tpm: 60000
+
+  # Gemini Flash — last resort for coder (only 20 RPD daily cap)
+  - model_name: coder
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      num_retries: 0
+      stream: true
+    model_info:
+      rpm: 12
+      tpm: 250000
+
+  # (Removed openrouter/deepseek/deepseek-r1-0528:free — OpenRouter discontinued the free
+  #  slug; it now 404s. Re-add a working reasoning model here if you want one in the coder
+  #  group, e.g. a currently-free OpenRouter reasoning slug looked up at setup time.)
+
+  # ── PLANNER MODEL ─────────────────────────────────────────────
+  # Dedicated model for @planner agent — needs long output + strong reasoning
+  # Priority: Claude Sonnet 4.5 (reliable) → Nemotron Super → DeepSeek R1 → Nemotron Ultra → Owl Alpha → Mistral Large
+  # Note: Claude Sonnet 4.5 is first because the free OpenRouter Nemotron idle-times-out
+  # mid-stream, which triggers fragile mid-stream fallbacks. Claude is reliable and won't stall.
+
+  # PRIMARY: NVIDIA NIM (free first-party). nemotron-3-super = 1M-ctx agentic reasoning/
+  # planning/tool-calling; glm-5.2 = long-horizon reasoning. More reliable than OpenRouter :free.
+  - model_name: planner
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  - model_name: planner
+    litellm_params:
+      model: nvidia_nim/z-ai/glm-5.2
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  # Fallback: Claude Sonnet 4.5 (reliable, long output) behind NIM.
+  - model_name: planner
+    litellm_params:
+      model: openai/claude-sonnet-4.5
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: planner
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 1
+      timeout: 60
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: planner
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: planner
+    litellm_params:
+      model: openrouter/openrouter/owl-alpha
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: planner
+    litellm_params:
+      model: openai/mistral-large
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  # ── REASONER MODEL ──────────────────────────────────────────
+  # Debugging, test logic, general reasoning tasks
+  # Priority: Nemotron Super → Claude Sonnet 4.5 → Owl Alpha → Mistral Large → Groq → Cerebras → DeepSeek R1 → Nemotron Ultra
+
+  # PRIMARY: NVIDIA NIM (free first-party) — strong reasoning for debugging/test logic.
+  - model_name: reasoner
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  - model_name: reasoner
+    litellm_params:
+      model: nvidia_nim/deepseek-ai/deepseek-v4-pro
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  # Fallbacks behind NIM.
+  - model_name: reasoner
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: reasoner
+    litellm_params:
+      model: openai/claude-sonnet-4.5
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: reasoner
+    litellm_params:
+      model: openrouter/openrouter/owl-alpha
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: reasoner
+    litellm_params:
+      model: openai/mistral-large
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: reasoner
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 30
+      tpm: 8000
+
+  - model_name: reasoner
+    litellm_params:
+      model: cerebras/gpt-oss-120b
+      api_key: os.environ/CEREBRAS_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 30
+      tpm: 60000
+
+  - model_name: reasoner
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  # ── REVIEWER MODEL ──────────────────────────────────────────
+  # Code reviews, architecture compliance
+  # Priority: NIM Mistral Medium 3.5 → NIM Llama-Nemotron-Super-49B → Claude Haiku 4.5
+  #   → Owl Alpha → Mistral Medium 3.5 → Qwen3 → Groq → Nemotron Ultra → Cerebras → Gemini Flash
+
+  # PRIMARY: NVIDIA NIM (free first-party) — fast structured review. mistral-medium-3.5
+  # (coding/agentic) + llama-3.3-nemotron-super-49b (reasoning + tool calling).
+  - model_name: reviewer
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-medium-3.5-128b
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  - model_name: reviewer
+    litellm_params:
+      model: nvidia_nim/nvidia/llama-3.3-nemotron-super-49b-v1
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 40
+      tpm: 200000
+
+  # Fallbacks: Claude Haiku (fast, quality), Owl Alpha, Mistral Medium behind NIM.
+  # Gemini demoted to last-resort tier.
+  - model_name: reviewer
+    litellm_params:
+      model: openai/claude-haiku-4.5
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: reviewer
+    litellm_params:
+      model: openrouter/openrouter/owl-alpha
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: reviewer
+    litellm_params:
+      model: openai/mistral-medium-3-5
+      api_base: https://router.bynara.id/v1
+      api_key: os.environ/NARA_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 10
+      tpm: 200000
+
+  - model_name: reviewer
+    litellm_params:
+      model: openrouter/qwen/qwen3-235b-a22b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: reviewer
+    litellm_params:
+      model: groq/qwen/qwen3-32b
+      api_key: os.environ/GROQ_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 60
+      tpm: 6000
+
+  - model_name: reviewer
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 20
+      tpm: 200000
+
+  - model_name: reviewer
+    litellm_params:
+      model: cerebras/gpt-oss-120b
+      api_key: os.environ/CEREBRAS_API_KEY
+      num_retries: 2
+    model_info:
+      rpm: 30
+      tpm: 60000
+
+  # Gemini Flash — last resort for reviewer (only 20 RPD daily cap)
+  - model_name: reviewer
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      num_retries: 0
+      stream: true
+    model_info:
+      rpm: 12
+      tpm: 250000
+
+
+# ── ROUTER SETTINGS ─────────────────────────────────────────
+router_settings:
+  # simple-shuffle tries each deployment in order, falling through on failure.
+  # usage-based-routing-v2 was putting all deployments into cooldown from
+  # cascading 429s; simple-shuffle just moves to the next one immediately.
+  routing_strategy: simple-shuffle
+  num_retries: 3
+  retry_after: 5
+  timeout: 300
+  allowed_fails: 1
+  # Once a deployment fails once, cool it down for 120s so the router skips it.
+  # This is critical for rate-limited providers (e.g. Gemini's 20 RPD daily cap) —
+  # once exhausted, they must stay out of rotation for a meaningful period.
+  cooldown_time: 120
+  # Ensure 429s trigger fallback across deployments within the same model group
+  retry_policy:
+    RateLimitError: 3
+    # BadRequestError (HTTP 400) means the request is malformed or the model doesn't
+    # support the input. Retrying NEVER succeeds — it only wastes attempts and delays
+    # the fallback. Set to 0 so LiteLLM moves to the next deployment immediately.
+    BadRequestError: 0
+    ContentPolicyViolationError: 0
+  # Cross-group fallbacks (only if ALL deployments in a group are exhausted):
+  fallbacks:
+    - coder: ["reasoner", "reviewer"]
+    - reasoner: ["planner", "coder", "reviewer"]
+    - planner: ["reasoner", "coder"]
+    - reviewer: ["reasoner", "coder"]
+  context_window_fallbacks:
+    - coder: ["reasoner"]
+    - reasoner: ["planner", "coder"]
+    - planner: ["reasoner"]
+    - reviewer: ["reasoner"]
+
+# ── LITELLM SETTINGS ────────────────────────────────────────
+litellm_settings:
+  json_logs: true
+  drop_params: true
+  # Strip `reasoning_content`/`thinking_blocks` from assistant messages before every call.
+  # drop_params does NOT sanitize nested message fields, so Groq/Cerebras otherwise reject
+  # replayed reasoning-model history with: "property 'reasoning_content' is unsupported".
+  # Implemented in strip_reasoning.py (mounted at /app/strip_reasoning.py by docker-compose).
+  callbacks: strip_reasoning.proxy_handler_instance
+  request_timeout: 300
+  cache: True
+  cache_params:
+    type: "local"
+    supported_call_types:
+      - "acompletion"
+      - "completion"
+  # Ensures the full prompt/response is sent to models without truncation.
+  # The context_window_fallbacks in router_settings handles overflow at routing level.

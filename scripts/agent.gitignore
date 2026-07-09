@@ -1,0 +1,18 @@
+# ═══════════════════════════════════════════════════
+# AI Agent — Files to exclude from version control
+# Merge these entries into your project's .gitignore
+# ═══════════════════════════════════════════════════
+
+# Agent memory — machine/session-specific, grows over time
+.opencode/memory/episodic/sessions.md
+.opencode/memory/prospective/goals.md
+.opencode/memory/retrieval/codebase_index.md
+.opencode/memory/semantic/user_preferences.md
+
+# Document ingestion — raw input files (often large binaries)
+docs/input/
+docs/parsed/
+
+# Python cache from doc_watcher
+scripts/__pycache__/
+*.pyc
